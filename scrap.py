@@ -1,26 +1,27 @@
 import requests
-import json
 import logging
 import time
 import os
+import pandas as pd
 
 class DataGouvFrScrapper:
-    def __init__(self, dataset_id: str, timeout: int, max_retries: int, sleep_between_retries: float):
+    def __init__(self, dataset_id: str, timeout: int, max_retries: int, sleep_between_retries: float, path: str = "./data/meteofrance"):
         self.dataset_id = dataset_id
         self.timeout = timeout
         self.max_retries = max_retries
         self.sleep_between_retries = sleep_between_retries
         self.infos = None
         self.resources = []
+        self.path = path
 
-    def get_api_url(self) -> str:
+    def _get_api_url(self) -> str:
         return f"https://www.data.gouv.fr/api/1/datasets/{self.dataset_id}/"
 
     def _fetch_dataset_infos(self, force = False) -> None:
         if not force and self.infos is not None:
             return
         
-        url = self.get_api_url()
+        url = self._get_api_url()
         attempt = 0
         logging.info(f"Fetching dataset infos from {url}")
         while attempt < self.max_retries:
@@ -36,7 +37,7 @@ class DataGouvFrScrapper:
                     time.sleep(self.sleep_between_retries)
         raise Exception("Max retries exceeded")
     
-    def fetch_resources(self, force = False) -> list:
+    def _fetch_resources(self, force = False) -> list:
         if not force and len(self.resources) > 0:
             return self.resources
         
@@ -46,9 +47,9 @@ class DataGouvFrScrapper:
         self.resources = self.infos.get("resources", [])
         return self.resources
     
-    def download_resources(self, download_path: str, force = False, filter=None) -> None:
-        resources = self.fetch_resources(force=force)
-        os.makedirs(download_path, exist_ok=True)
+    def _download_resources(self, force = False, filter=None) -> None:
+        resources = self._fetch_resources(force=force)
+        os.makedirs(self.path, exist_ok=True)
 
         for resource in resources:
             resource_url = resource.get("url")
@@ -57,7 +58,7 @@ class DataGouvFrScrapper:
                 logging.info(f"Resource \"{resource_url}\" filtered out, skipping download.")
                 continue
 
-            filename = os.path.join(download_path, resource_url.split("/")[-1])
+            filename = os.path.join(self.path, resource_url.split("/")[-1])
             if os.path.exists(filename):
                 logging.info(f"File \"{filename}\" already exists, skipping download.")
                 continue
@@ -78,4 +79,10 @@ class DataGouvFrScrapper:
                         time.sleep(self.sleep_between_retries)
             else:
                 logging.error(f"Failed to download resource {resource_url} after {self.max_retries} attempts.")
-    
+
+    def build_dataframe(self, force=False, filter=None) -> pd.DataFrame:
+        self._download_resources(force=force, filter=filter)
+
+        filepaths = [os.path.join(self.path, f) for f in os.listdir(self.path) if filter and f.endswith(".csv.gz") and filter(f)]
+        dataframes = [pd.read_csv(fp, compression='gzip', sep=';') for fp in filepaths]
+        return pd.concat(dataframes, ignore_index=True)
