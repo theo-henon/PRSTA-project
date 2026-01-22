@@ -1,5 +1,6 @@
 import pandas as pd
 import re
+import os
 
 
 def read_rte_file(file_path):
@@ -115,7 +116,8 @@ def process_block(block_lines, current_date):
 def main():
     print("Reading RTE consumption data...")
     
-    file_path = "/home/lla/epita/prsta-project/data/rte/conso_mix_RTE_2025.xls"
+    data_folder = os.path.join(os.path.dirname(__file__), "data")
+    file_path = os.path.join(data_folder, "rte/conso_mix_RTE_2025.xls")
     
     try:
         df = read_rte_file(file_path)
@@ -131,7 +133,7 @@ def main():
         print(df.dtypes)
         
         # Optionally save to CSV
-        output_path = "/home/lla/epita/prsta-project/data/rte/conso_mix_consolidated.csv"
+        output_path = os.path.join(data_folder, "rte/conso_mix_consolidated.csv")
         df.to_csv(output_path, index=False)
         print(f"\nData saved to {output_path}")
         
